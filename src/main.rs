@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs::{self, Metadata, ReadDir},
-    path::{self, Path},
+    path::{Path},
     process::exit,
 };
 
@@ -34,7 +34,7 @@ fn blue_bold(str: String) -> String {
     return format!("\x1b[34;1m{}\x1b[0m", str);
 }
 
-fn process_entries(dir: ReadDir, base_path: &Path, opts: Options) {
+fn process_entries(dir: ReadDir, base_path: &Path, opts: Options) -> Result<(), String> {
     let mut dir_entries: Vec<String> = dir
         .into_iter()
         .filter_map(|d| d.ok())
@@ -90,9 +90,10 @@ fn process_entries(dir: ReadDir, base_path: &Path, opts: Options) {
     };
 
     println!("{}", output.join(join_str));
+    Ok(())
 }
 
-fn main() {
+fn run() -> Result<(), String> {
     let app = App::new("rs")
         .about("An ls clone in rust")
         .author("Harrison Grieve")
@@ -111,7 +112,7 @@ fn main() {
     let options = Options {
         is_show_all: matches.is_present(ALL_ARG_NAME),
         is_show_almost_all: matches.is_present(ALMOST_ALL_ARG_NAME),
-        is_one_line: matches.is_present(ONE_LINE_ARG_NAME)
+        is_one_line: matches.is_present(ONE_LINE_ARG_NAME),
     };
 
     if let Ok(metadata) = fs::metadata(base_path) {
@@ -121,11 +122,18 @@ fn main() {
         }
     }
 
-    match fs::read_dir(base_path) {
+    return match fs::read_dir(base_path) {
         Ok(read_dir) => process_entries(read_dir, base_path, options),
+        Err(err) => Err(format!("rs: cannot access '{}': {}", base_path.display(), err).to_string()),
+    };
+}
+
+fn main() {
+    exit(match run() {
+        Ok(_) => 0,
         Err(err) => {
-            eprintln!("rs: cannot access '{}': {}", base_path.display(), err);
-            exit(1);
+            eprintln!("{}", err);
+            1
         }
-    }
+    })
 }
