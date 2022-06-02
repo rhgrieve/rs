@@ -16,7 +16,8 @@ fn main() {
         .author("Harrison Grieve")
         .arg(Arg::with_name("path"))
         .arg(Arg::with_name("all").short("a"))
-        .arg(Arg::with_name("almost-all").short("A"));
+        .arg(Arg::with_name("almost-all").short("A"))
+        .arg(Arg::with_name("one-line").short("1"));
 
     let matches = app.get_matches();
 
@@ -28,6 +29,7 @@ fn main() {
     // OPTIONS
     let is_show_all = matches.is_present("all");
     let is_show_almost_all = matches.is_present("almost-all");
+    let is_one_line = matches.is_present("one-line");
 
     let dir = fs::read_dir(path).expect("Failed to read directory");
     let mut dir_entries: Vec<String> = dir
@@ -82,5 +84,10 @@ fn main() {
         }
     }
 
-    println!("{}", output.join("  "));
+    let join_str = match is_one_line {
+        true => "\n",
+        false => "  ",
+    };
+
+    println!("{}", output.join(join_str));
 }
