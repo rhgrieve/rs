@@ -5,7 +5,7 @@ version = 3
 [[package]]
 name = "rawrgs"
 version = "0.1.0"
-source = "git+https://github.com/rhgrieve/rawrgs#4e179705a870a156788b54c9389b513ca08bf7f3"
+source = "git+https://github.com/rhgrieve/rawrgs#e6fe6e2d620ac41952e12061ed3e97757a25eb27"
 
 [[package]]
 name = "rs"
