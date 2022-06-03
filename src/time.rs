@@ -11,6 +11,8 @@ pub struct SimpleDate {
 }
 
 impl SimpleDate {
+    // Stolen with great respect from Howard Hinnant :]
+    // https://stackoverflow.com/a/32158604
     pub fn from_days(mut days: u64) -> SimpleDate {
         days += 719468;
         let era = (if days > 0 { days } else { days - 146096 } / 146097);

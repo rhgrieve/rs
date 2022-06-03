@@ -4,8 +4,8 @@ mod time;
 use std::{
     collections::HashMap,
     fs::{self, Metadata, ReadDir},
-    path::{Path},
-    process::exit, time::SystemTime, string,
+    path::{Path, PathBuf},
+    process::exit, time::SystemTime, string, fmt, cmp::Ordering,
 };
 
 use rawrgs::{App, Arg};
@@ -25,6 +25,7 @@ const LONG_ARG_NAME: &str = "long";
 // Separators
 const NEW_LINE: &str = "\n";
 const ENTRY_SPACE: &str = "  ";
+const TABLE_COL_SIZE: usize = 1;
 
 // Directory indicators
 const CURRENT_DIR: &str = ".";
@@ -38,6 +39,48 @@ struct Options {
     is_show_almost_all: bool,
     is_one_line: bool,
     is_long_output: bool,
+}
+
+struct RSEntry {
+    name: String,
+    path: PathBuf,
+    metadata: Option<Metadata>,
+}
+
+impl Ord for RSEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
+impl PartialOrd for RSEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Eq for RSEntry {}
+
+impl PartialEq for RSEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
+}
+
+impl fmt::Display for RSEntry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(meta) = &self.metadata {
+            if meta.is_dir() {
+                write!(f, "{}", format::blue_bold(&self.name))?;
+            } else {
+                write!(f, "{}", self.name)?;   
+            }
+        } else {
+            write!(f, "{}", self.name)?;
+        }
+
+        Ok(())
+    }
 }
 
 fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(), String> {
@@ -60,31 +103,28 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
         dir_entries.push(String::from(PARENT_DIR));
     }
 
-    let mut metadata_map: HashMap<String, Option<Metadata>> = HashMap::new();
+    
+    let mut rs_entries: Vec<RSEntry> = vec![];
     for dir_entry in dir_entries {
         let local_path = base_path.join(&dir_entry);
         let metadata = fs::metadata(&local_path);
         match metadata {
-            Ok(meta) => metadata_map.insert(dir_entry, Some(meta)),
+            Ok(meta) => rs_entries.push(RSEntry { name: dir_entry, path: local_path, metadata: Some(meta) }),
             Err(err) => {
                 eprintln!("{}", err);
-                metadata_map.insert(dir_entry, None)
+                rs_entries.push(RSEntry { name: dir_entry, path: local_path, metadata: None });
             }
-        };
+        }
     }
 
-    let mut entry_keys_sorted: Vec<String> = metadata_map.keys().cloned().collect();
-
-    entry_keys_sorted.sort();
-
+    rs_entries.sort();
+    
     let mut output: Vec<Vec<String>> = vec![];
-    for key in entry_keys_sorted {
-        if let Some(file_metadata) = metadata_map.get(&key) {
-            if let Some(meta) = file_metadata {
-                let mut string_builder: Vec<String> = vec![];
-                
+    for entry in rs_entries {
+        if let Some(file_metadata) = entry.metadata {
+            let mut string_builder: Vec<String> = vec![];
                 if options.is_long_output {
-                    if let Ok(accessed) = meta.accessed() {
+                    if let Ok(accessed) = file_metadata.accessed() {
                         let duration = accessed.duration_since(SystemTime::UNIX_EPOCH).unwrap();
                         let days = duration.as_secs() / SECS_PER_DAY;
                         let date = time::SimpleDate::from_days(days);
@@ -94,22 +134,21 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
                         string_builder.push(String::from(" "));
                     }
 
-                    string_builder.push(meta.len().to_string())
+                    string_builder.push(file_metadata.len().to_string())
                 }
 
-                if meta.is_dir() {
-                    string_builder.push(format::blue_bold(key))
+                if file_metadata.is_dir() {
+                    string_builder.push(format::blue_bold(&entry.name))
                 } else {
-                    string_builder.push(key);
+                    string_builder.push(entry.name);
                 }
 
                 output.push(string_builder)
-            }
         }
     }
 
     if options.is_one_line || options.is_long_output {
-        println!("{}", table(output, 2, TableAlignment::RightLastLeft).unwrap());
+        println!("{}", table(output, TABLE_COL_SIZE, TableAlignment::RightLastLeft).unwrap());
     } else {
         println!("{}", output.concat().join(ENTRY_SPACE));
     }

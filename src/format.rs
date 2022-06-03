@@ -3,7 +3,7 @@ use std::collections::HashMap;
 const ESCAPE_BLUE_BOLD: &str = "\x1b[34;1m";
 const ESCAPE_RESET: &str = "\x1b[0m";
 
-pub fn blue_bold(str: String) -> String {
+pub fn blue_bold(str: &String) -> String {
     return format!("\x1b[34;1m{}\x1b[0m", str);
 }
 
@@ -70,16 +70,21 @@ fn col_max_size_map(input_data: &Vec<Vec<String>>) -> HashMap<usize, usize> {
     return col_max_size_map;
 }
 
-pub fn table(mut input_data: Vec<Vec<String>>, col_size: usize, align: TableAlignment) -> Result<String, &'static str> {
-    let num_rows = input_data.len();
-    let num_cols = input_data[0].len();
-
-    // Validate
+fn validate_table_equality(input_data: &Vec<Vec<String>>, num_rows: usize, num_cols: usize) -> Result<(), &'static str> {
     for row in 0..num_rows {
         if input_data[row].len() != num_cols {
             return Err("All rows must have the same number of columns");
         }
     }
+    Ok(())
+}
+
+pub fn table(mut input_data: Vec<Vec<String>>, col_size: usize, align: TableAlignment) -> Result<String, &'static str> {
+    let num_rows = input_data.len();
+    let num_cols = input_data[0].len();
+
+    // Validate
+    validate_table_equality(&input_data, num_rows, num_cols)?;
 
     let col_max_size_map = col_max_size_map(&input_data);
 
