@@ -112,6 +112,10 @@ impl RSEntry {
                     string_builder.push("?".to_string());
                 }
 
+                // file size
+                let file_size = &self.get_file_size();
+                string_builder.push(file_size.to_string());
+                
                 // last modified time
                 if let Ok(accessed) = file_metadata.modified() {
                     let duration = accessed.duration_since(SystemTime::UNIX_EPOCH).unwrap();
@@ -122,10 +126,6 @@ impl RSEntry {
                 } else {
                     string_builder.push(String::from(" "));
                 }
-
-                // file size
-                let file_size = &self.get_file_size();
-                string_builder.push(file_size.to_string())
             }
 
             if file_metadata.is_dir() {
