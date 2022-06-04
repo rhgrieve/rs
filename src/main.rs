@@ -25,7 +25,10 @@ const ALL_ARG_NAME: &str = "all";
 const ALMOST_ALL_ARG_NAME: &str = "almost-all";
 const ONE_LINE_ARG_NAME: &str = "one-line";
 const LONG_ARG_NAME: &str = "long";
-const NUMERIC_UID_GID_NAME: &str = "numeric-uid-gid";
+const NUMERIC_UID_GID_ARG_NAME: &str = "numeric-uid-gid";
+const HUMAN_READABLE_ARG_NAME: &str = "human-readable";
+const GROUP_DIRECTORIES_FIRST_ARG_NAME: &str = "group-directories-first";
+const IGNORE_BACKUPS_ARG_NAME: &str = "ignore-backups";
 
 // Separators
 const ENTRY_SPACE: &str = "  ";
@@ -44,6 +47,9 @@ struct Options {
     is_one_line: bool,
     is_long_output: bool,
     is_numeric_uid_gid: bool,
+    is_human_readable: bool,
+    is_group_directories_first: bool,
+    is_ignore_backups: bool,
 }
 
 struct RSEntry {
@@ -63,6 +69,8 @@ impl RSEntry {
                 permission_string_prefix.push_str("-");
             } else if file_metadata.is_symlink() {
                 permission_string_prefix.push_str("l");
+            } else {
+                permission_string_prefix.push_str("?");
             }
 
             let mode = file_metadata.permissions().mode();
@@ -87,6 +95,14 @@ impl RSEntry {
             return file_metadata.len();
         }
         0
+    }
+
+    fn get_file_size_human(&self) -> String {
+        let mut human_readable_string = String::new();
+        if let Some(file_metadata) = &self.metadata {
+            human_readable_string = format::bytes_to_human_readable(file_metadata.len())
+        }
+        return human_readable_string;
     }
 
     fn get_table_row(&self, options: &Options) -> Vec<String> {
@@ -127,9 +143,12 @@ impl RSEntry {
                 string_builder.push(gid_string);
 
                 // file size
-                let file_size = &self.get_file_size();
-                string_builder.push(file_size.to_string());
-                
+                let file_size_string = match options.is_human_readable {
+                    true => self.get_file_size_human(),
+                    false => self.get_file_size().to_string(),
+                };
+                string_builder.push(file_size_string);
+
                 // last modified time
                 if let Ok(accessed) = file_metadata.modified() {
                     let duration = accessed.duration_since(SystemTime::UNIX_EPOCH).unwrap();
@@ -218,13 +237,8 @@ fn get_dir_entries(dir: ReadDir, options: &Options) -> Vec<String> {
         .filter_map(|d| d.ok())
         .map(|d| d.file_name())
         .filter_map(|o| o.into_string().ok())
-        .filter(|s| {
-            if !options.is_show_all && !options.is_show_almost_all {
-                !s.starts_with(CURRENT_DIR)
-            } else {
-                true
-            }
-        })
+        .filter(|s| (options.is_show_all || options.is_show_almost_all) || !s.starts_with(CURRENT_DIR))
+        .filter(|s| !options.is_ignore_backups || (options.is_ignore_backups && !s.ends_with("~")))
         .collect();
 }
 
@@ -246,7 +260,16 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
     }
 
     let mut rs_entries = get_entries(dir_entries, base_path);
-    rs_entries.sort();
+    if options.is_group_directories_first {
+        rs_entries.sort_by(|a, b| {
+            if let (Some(meta_a), Some(meta_b)) = (&a.metadata, &b.metadata) {
+                return meta_b.is_dir().cmp(&meta_a.is_dir());
+            }
+            a.cmp(b)
+        })
+    } else {
+        rs_entries.sort();
+    }
 
     let tabular_entries = get_tabular_entries(rs_entries, &options);
 
@@ -275,7 +298,12 @@ fn run() -> Result<(), String> {
         .arg(Arg::with_name(ALMOST_ALL_ARG_NAME).short("A"))
         .arg(Arg::with_name(ONE_LINE_ARG_NAME).short("1"))
         .arg(Arg::with_name(LONG_ARG_NAME).short("l"))
-        .arg(Arg::with_name(NUMERIC_UID_GID_NAME).short("n"));
+        .arg(Arg::with_name(NUMERIC_UID_GID_ARG_NAME).short("n"))
+        .arg(Arg::with_name(HUMAN_READABLE_ARG_NAME).short("H"))
+        .arg(
+            Arg::with_name(GROUP_DIRECTORIES_FIRST_ARG_NAME).long(GROUP_DIRECTORIES_FIRST_ARG_NAME),
+        )
+        .arg(Arg::with_name(IGNORE_BACKUPS_ARG_NAME).short("B"));
 
     let matches = app.get_matches();
 
@@ -289,7 +317,10 @@ fn run() -> Result<(), String> {
         is_show_almost_all: matches.is_present(ALMOST_ALL_ARG_NAME),
         is_one_line: matches.is_present(ONE_LINE_ARG_NAME),
         is_long_output: matches.is_present(LONG_ARG_NAME),
-        is_numeric_uid_gid: matches.is_present(NUMERIC_UID_GID_NAME),
+        is_numeric_uid_gid: matches.is_present(NUMERIC_UID_GID_ARG_NAME),
+        is_human_readable: matches.is_present(HUMAN_READABLE_ARG_NAME),
+        is_group_directories_first: matches.is_present(GROUP_DIRECTORIES_FIRST_ARG_NAME),
+        is_ignore_backups: matches.is_present(IGNORE_BACKUPS_ARG_NAME),
     };
 
     if let Ok(metadata) = fs::metadata(base_path) {

@@ -1,10 +1,36 @@
 use std::collections::HashMap;
 
+// Escape codes
 const ESCAPE_BLUE_BOLD: &str = "\x1b[34;1m";
 const ESCAPE_RESET: &str = "\x1b[0m";
 
+// Bytes
+const KB_IN_BYTES: f64 = 1024.0;
+const MB_IN_BYTES: f64 = 1048576.0;
+const GB_IN_BYTES: f64 = 1073741824.0;
+const TB_IN_BYTES: f64 = 1099511627776.0;
+
 pub fn blue_bold(str: &String) -> String {
     return format!("\x1b[34;1m{}\x1b[0m", str);
+}
+
+pub fn bytes_to_human_readable(bytes: u64) -> String {
+    let mut num = bytes as f64;
+    let label: &str;
+    if num >= KB_IN_BYTES && num < MB_IN_BYTES {
+        num = num / KB_IN_BYTES;
+        label = "K";
+    } else if num >= MB_IN_BYTES && num < GB_IN_BYTES {
+        num = num / MB_IN_BYTES;
+        label = "M";
+    } else if num >= GB_IN_BYTES && num < TB_IN_BYTES {
+        num = num / GB_IN_BYTES;
+        label = "G"
+    } else {
+        return format!("{}", num);
+    }
+
+    return format!("{:.1}{}", num, label);
 }
 
 // This is horrible!! 
