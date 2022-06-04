@@ -25,6 +25,7 @@ const ALL_ARG_NAME: &str = "all";
 const ALMOST_ALL_ARG_NAME: &str = "almost-all";
 const ONE_LINE_ARG_NAME: &str = "one-line";
 const LONG_ARG_NAME: &str = "long";
+const NUMERIC_UID_GID_NAME: &str = "numeric-uid-gid";
 
 // Separators
 const ENTRY_SPACE: &str = "  ";
@@ -42,6 +43,7 @@ struct Options {
     is_show_almost_all: bool,
     is_one_line: bool,
     is_long_output: bool,
+    is_numeric_uid_gid: bool,
 }
 
 struct RSEntry {
@@ -87,10 +89,10 @@ impl RSEntry {
         0
     }
 
-    fn get_table_row(&self, is_long_output: bool) -> Vec<String> {
+    fn get_table_row(&self, options: &Options) -> Vec<String> {
         let mut string_builder: Vec<String> = vec![];
         if let Some(ref file_metadata) = &self.metadata {
-            if is_long_output {
+            if options.is_long_output || options.is_numeric_uid_gid {
                 // permission string
                 let permission_string = self.get_permission_string();
                 string_builder.push(permission_string);
@@ -99,18 +101,30 @@ impl RSEntry {
                 string_builder.push(file_metadata.st_nlink().to_string());
 
                 // owner
-                if let Ok(user_name) = user::get_by_uid(file_metadata.st_uid()) {
-                    string_builder.push(user_name)
-                } else {
-                    string_builder.push("?".to_string());
-                }
+                let uid_string = match options.is_numeric_uid_gid {
+                    true => file_metadata.st_uid().to_string(),
+                    false => {
+                        if let Ok(user_name) = user::get_by_uid(file_metadata.st_uid()) {
+                            user_name
+                        } else {
+                            "?".to_string()
+                        }
+                    }
+                };
+                string_builder.push(uid_string);
 
                 // group
-                if let Ok(group_name) = user::group_by_gid(file_metadata.st_gid()) {
-                    string_builder.push(group_name);
-                } else {
-                    string_builder.push("?".to_string());
-                }
+                let gid_string = match options.is_numeric_uid_gid {
+                    true => file_metadata.st_gid().to_string(),
+                    false => {
+                        if let Ok(group_name) = user::group_by_gid(file_metadata.st_gid()) {
+                            group_name
+                        } else {
+                            "?".to_string()
+                        }
+                    }
+                };
+                string_builder.push(gid_string);
 
                 // file size
                 let file_size = &self.get_file_size();
@@ -217,7 +231,7 @@ fn get_dir_entries(dir: ReadDir, options: &Options) -> Vec<String> {
 fn get_tabular_entries(rs_entries: Vec<RSEntry>, options: &Options) -> Vec<Vec<String>> {
     let mut output: Vec<Vec<String>> = vec![];
     for entry in rs_entries {
-        let row = entry.get_table_row(options.is_long_output);
+        let row = entry.get_table_row(options);
         output.push(row);
     }
     output
@@ -236,7 +250,7 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
 
     let tabular_entries = get_tabular_entries(rs_entries, &options);
 
-    if options.is_one_line || options.is_long_output {
+    if options.is_one_line || options.is_long_output || options.is_numeric_uid_gid {
         let table = table(
             tabular_entries,
             TABLE_COL_SIZE,
@@ -260,7 +274,8 @@ fn run() -> Result<(), String> {
         .arg(Arg::with_name(ALL_ARG_NAME).short("a"))
         .arg(Arg::with_name(ALMOST_ALL_ARG_NAME).short("A"))
         .arg(Arg::with_name(ONE_LINE_ARG_NAME).short("1"))
-        .arg(Arg::with_name(LONG_ARG_NAME).short("l"));
+        .arg(Arg::with_name(LONG_ARG_NAME).short("l"))
+        .arg(Arg::with_name(NUMERIC_UID_GID_NAME).short("n"));
 
     let matches = app.get_matches();
 
@@ -274,6 +289,7 @@ fn run() -> Result<(), String> {
         is_show_almost_all: matches.is_present(ALMOST_ALL_ARG_NAME),
         is_one_line: matches.is_present(ONE_LINE_ARG_NAME),
         is_long_output: matches.is_present(LONG_ARG_NAME),
+        is_numeric_uid_gid: matches.is_present(NUMERIC_UID_GID_NAME),
     };
 
     if let Ok(metadata) = fs::metadata(base_path) {
