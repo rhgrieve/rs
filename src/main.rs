@@ -47,6 +47,9 @@ const PARENT_DIR: &str = "..";
 // Time
 const SECS_PER_DAY: u64 = 86400;
 
+// Size
+const MB_BYTES: u64 = 1024;
+
 enum RSSort {
     Time,
     AccessTime,
@@ -58,12 +61,7 @@ enum RSSort {
 
 struct RSEntries {
     entries: Vec<RSEntry>,
-}
-
-impl From<Vec<RSEntry>> for RSEntries {
-    fn from(entries: Vec<RSEntry>) -> RSEntries {
-        RSEntries { entries }
-    }
+    block_size: u64,
 }
 
 impl RSEntries {
@@ -92,6 +90,15 @@ impl RSEntries {
 
     fn reverse(&mut self) {
         self.entries.reverse();
+    }
+
+    fn to_tabular(&self, options: &Options) -> Vec<Vec<String>> {
+        let mut output: Vec<Vec<String>> = vec![];
+        for entry in &self.entries {
+            let row = entry.get_table_row(options);
+            output.push(row);
+        }
+        output
     }
 }
 
@@ -170,7 +177,7 @@ impl RSEntry {
         if let Some(ref file_metadata) = &self.metadata {
             // size blocks
             if options.is_show_size_blocks {
-                string_builder.push((file_metadata.st_blksize() / 1024).to_string())
+                string_builder.push((file_metadata.st_blksize() / MB_BYTES).to_string())
             }
 
             if options.is_long_output || options.is_numeric_uid_gid {
@@ -278,16 +285,20 @@ impl fmt::Display for RSEntry {
 }
 
 fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> RSEntries {
+    let mut block_size = 0;
     let mut rs_entries: Vec<RSEntry> = vec![];
     for dir_entry in dir_entries {
         let local_path = base_path.join(&dir_entry);
         let metadata = fs::metadata(&local_path);
         match metadata {
-            Ok(meta) => rs_entries.push(RSEntry {
-                name: dir_entry,
-                path: local_path,
-                metadata: Some(meta),
-            }),
+            Ok(meta) => {
+                block_size += meta.st_blksize() / MB_BYTES;
+                rs_entries.push(RSEntry {
+                    name: dir_entry,
+                    path: local_path,
+                    metadata: Some(meta),
+                })
+            },
             Err(err) => {
                 eprintln!("{}", err);
                 rs_entries.push(RSEntry {
@@ -298,7 +309,7 @@ fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> RSEntries {
             }
         }
     }
-    RSEntries::from(rs_entries)
+    RSEntries { entries: rs_entries, block_size }
 }
 
 fn get_dir_entries(dir: ReadDir, options: &Options) -> Vec<String> {
@@ -347,18 +358,17 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
         rs_entries.reverse();
     }
 
-    let tabular_entries = get_tabular_entries(rs_entries, &options);
-
     if options.is_one_line || options.is_long_output || options.is_numeric_uid_gid {
         let table = table(
-            tabular_entries,
+            rs_entries.to_tabular(&options),
             TABLE_COL_SIZE,
             TableAlignment::RightLastLeft,
         )
         .unwrap();
+        println!("total {}", rs_entries.block_size);
         println!("{}", table);
     } else {
-        println!("{}", tabular_entries.concat().join(ENTRY_SPACE));
+        println!("{}", rs_entries.to_tabular(&options).concat().join(ENTRY_SPACE));
     }
 
     Ok(())
