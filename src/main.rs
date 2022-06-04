@@ -31,7 +31,9 @@ const GROUP_DIRECTORIES_FIRST_ARG_NAME: &str = "group-directories-first";
 const IGNORE_BACKUPS_ARG_NAME: &str = "ignore-backups";
 const TIME_SORT_ARG_NAME: &str = "sort-time";
 const SIZE_SORT_ARG_NAME: &str = "sort-size";
+const EXT_SORT_ARG_NAME: &str = "sort-extension";
 const SIZE_ARG_NAME: &str = "size";
+const ACCESS_TIME_ARG_NAME: &str = "access-time";
 
 // Separators
 const ENTRY_SPACE: &str = "  ";
@@ -46,8 +48,10 @@ const SECS_PER_DAY: u64 = 86400;
 
 enum RSSort {
     Time,
+    AccessTime,
     Size,
     Directory,
+    Extension,
     Default,
 }
 
@@ -68,7 +72,16 @@ impl RSEntries {
                 return match kind {
                     RSSort::Directory => meta_b.is_dir().cmp(&meta_a.is_dir()),
                     RSSort::Time => meta_b.st_mtime().cmp(&meta_a.st_mtime()),
+                    RSSort::AccessTime => meta_b.st_atime().cmp(&meta_a.st_atime()),
                     RSSort::Size => meta_b.len().cmp(&meta_a.len()),
+                    RSSort::Extension => {
+                        return match (a.path.extension(), b.path.extension()) {
+                            (Some(ext_a), Some(ext_b)) => ext_a.cmp(ext_b),
+                            (Some(_), None) => Ordering::Greater,
+                            (None, Some(_)) => Ordering::Less,
+                            (None, None) => a.cmp(b),
+                        };
+                    }
                     RSSort::Default => a.cmp(b),
                 };
             }
@@ -88,7 +101,9 @@ struct Options {
     is_ignore_backups: bool,
     is_sort_by_time: bool,
     is_sort_by_size: bool,
+    is_sort_by_extension: bool,
     is_show_size_blocks: bool,
+    is_access_time: bool,
 }
 
 struct RSEntry {
@@ -193,9 +208,14 @@ impl RSEntry {
                 };
                 string_builder.push(file_size_string);
 
+                let mut time_to_parse = file_metadata.modified();
+                if options.is_access_time {
+                    time_to_parse = file_metadata.accessed();
+                }
+
                 // last modified time
-                if let Ok(accessed) = file_metadata.modified() {
-                    let duration = accessed.duration_since(SystemTime::UNIX_EPOCH).unwrap();
+                if let Ok(system_time) = time_to_parse {
+                    let duration = system_time.duration_since(SystemTime::UNIX_EPOCH).unwrap();
                     let days = duration.as_secs() / SECS_PER_DAY;
                     let date = time::SimpleDate::from_days(days);
                     string_builder.push(date.month_display(time::DateFormat::ShortMonth));
@@ -307,14 +327,14 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
 
     let mut rs_entries = get_entries(dir_entries, base_path);
 
-    let mut sort_type: RSSort = RSSort::Default;
-    if options.is_group_directories_first {
-        sort_type = RSSort::Directory;
-    } else if options.is_sort_by_size {
-        sort_type = RSSort::Size;
-    } else if options.is_sort_by_time {
-        sort_type = RSSort::Time;
-    }
+    let sort_type = match options {
+        Options { is_group_directories_first: true, .. } => RSSort::Directory,
+        Options { is_sort_by_size: true, .. } => RSSort::Size,
+        Options { is_access_time: true, is_long_output: true, is_sort_by_time: true, .. } => RSSort::AccessTime,
+        Options { is_sort_by_time: true, .. } => RSSort::Time,
+        Options { is_sort_by_extension: true, .. } => RSSort::Extension,
+        _ => RSSort::Default,
+    };
 
     rs_entries.sort_by(sort_type);
 
@@ -353,7 +373,9 @@ fn run() -> Result<(), String> {
         .arg(Arg::with_name(IGNORE_BACKUPS_ARG_NAME).short("B"))
         .arg(Arg::with_name(TIME_SORT_ARG_NAME).short("t"))
         .arg(Arg::with_name(SIZE_ARG_NAME).short("s"))
-        .arg(Arg::with_name(SIZE_SORT_ARG_NAME).short("S"));
+        .arg(Arg::with_name(SIZE_SORT_ARG_NAME).short("S"))
+        .arg(Arg::with_name(EXT_SORT_ARG_NAME).short("X"))
+        .arg(Arg::with_name(ACCESS_TIME_ARG_NAME).short("u"));
 
     let matches = app.get_matches();
 
@@ -373,7 +395,9 @@ fn run() -> Result<(), String> {
         is_ignore_backups: matches.is_present(IGNORE_BACKUPS_ARG_NAME),
         is_sort_by_time: matches.is_present(TIME_SORT_ARG_NAME),
         is_sort_by_size: matches.is_present(SIZE_SORT_ARG_NAME),
+        is_sort_by_extension: matches.is_present(EXT_SORT_ARG_NAME),
         is_show_size_blocks: matches.is_present(SIZE_ARG_NAME),
+        is_access_time: matches.is_present(ACCESS_TIME_ARG_NAME),
     };
 
     if let Ok(metadata) = fs::metadata(base_path) {
