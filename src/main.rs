@@ -32,6 +32,7 @@ const IGNORE_BACKUPS_ARG_NAME: &str = "ignore-backups";
 const TIME_SORT_ARG_NAME: &str = "sort-time";
 const SIZE_SORT_ARG_NAME: &str = "sort-size";
 const EXT_SORT_ARG_NAME: &str = "sort-extension";
+const REVERSE_ARG_NAME: &str = "reverse";
 const SIZE_ARG_NAME: &str = "size";
 const ACCESS_TIME_ARG_NAME: &str = "access-time";
 
@@ -88,6 +89,10 @@ impl RSEntries {
             a.cmp(b)
         })
     }
+
+    fn reverse(&mut self) {
+        self.entries.reverse();
+    }
 }
 
 struct Options {
@@ -102,6 +107,7 @@ struct Options {
     is_sort_by_time: bool,
     is_sort_by_size: bool,
     is_sort_by_extension: bool,
+    is_sort_reverse: bool,
     is_show_size_blocks: bool,
     is_access_time: bool,
 }
@@ -337,6 +343,9 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
     };
 
     rs_entries.sort_by(sort_type);
+    if options.is_sort_reverse {
+        rs_entries.reverse();
+    }
 
     let tabular_entries = get_tabular_entries(rs_entries, &options);
 
@@ -375,14 +384,10 @@ fn run() -> Result<(), String> {
         .arg(Arg::with_name(SIZE_ARG_NAME).short("s"))
         .arg(Arg::with_name(SIZE_SORT_ARG_NAME).short("S"))
         .arg(Arg::with_name(EXT_SORT_ARG_NAME).short("X"))
+        .arg(Arg::with_name(REVERSE_ARG_NAME).short("r"))
         .arg(Arg::with_name(ACCESS_TIME_ARG_NAME).short("u"));
 
     let matches = app.get_matches();
-
-    let base_path = match matches.value_of(PATH_ARG_NAME) {
-        Some(path) => Path::new(path),
-        None => Path::new(DEFAULT_PATH),
-    };
 
     let options = Options {
         is_show_all: matches.is_present(ALL_ARG_NAME),
@@ -396,8 +401,14 @@ fn run() -> Result<(), String> {
         is_sort_by_time: matches.is_present(TIME_SORT_ARG_NAME),
         is_sort_by_size: matches.is_present(SIZE_SORT_ARG_NAME),
         is_sort_by_extension: matches.is_present(EXT_SORT_ARG_NAME),
+        is_sort_reverse: matches.is_present(REVERSE_ARG_NAME),
         is_show_size_blocks: matches.is_present(SIZE_ARG_NAME),
         is_access_time: matches.is_present(ACCESS_TIME_ARG_NAME),
+    };
+
+    let base_path = match matches.value_of(PATH_ARG_NAME) {
+        Some(path) => Path::new(path),
+        None => Path::new(DEFAULT_PATH),
     };
 
     if let Ok(metadata) = fs::metadata(base_path) {
