@@ -29,6 +29,9 @@ const NUMERIC_UID_GID_ARG_NAME: &str = "numeric-uid-gid";
 const HUMAN_READABLE_ARG_NAME: &str = "human-readable";
 const GROUP_DIRECTORIES_FIRST_ARG_NAME: &str = "group-directories-first";
 const IGNORE_BACKUPS_ARG_NAME: &str = "ignore-backups";
+const TIME_SORT_ARG_NAME: &str = "sort-time";
+const SIZE_SORT_ARG_NAME: &str = "sort-size";
+const SIZE_ARG_NAME: &str = "size";
 
 // Separators
 const ENTRY_SPACE: &str = "  ";
@@ -41,6 +44,39 @@ const PARENT_DIR: &str = "..";
 // Time
 const SECS_PER_DAY: u64 = 86400;
 
+enum RSSort {
+    Time,
+    Size,
+    Directory,
+    Default,
+}
+
+struct RSEntries {
+    entries: Vec<RSEntry>,
+}
+
+impl From<Vec<RSEntry>> for RSEntries {
+    fn from(entries: Vec<RSEntry>) -> RSEntries {
+        RSEntries { entries }
+    }
+}
+
+impl RSEntries {
+    fn sort_by(&mut self, kind: RSSort) {
+        self.entries.sort_by(|a, b| {
+            if let (Some(meta_a), Some(meta_b)) = (&a.metadata, &b.metadata) {
+                return match kind {
+                    RSSort::Directory => meta_b.is_dir().cmp(&meta_a.is_dir()),
+                    RSSort::Time => meta_b.st_mtime().cmp(&meta_a.st_mtime()),
+                    RSSort::Size => meta_b.len().cmp(&meta_a.len()),
+                    RSSort::Default => a.cmp(b),
+                };
+            }
+            a.cmp(b)
+        })
+    }
+}
+
 struct Options {
     is_show_all: bool,
     is_show_almost_all: bool,
@@ -50,6 +86,9 @@ struct Options {
     is_human_readable: bool,
     is_group_directories_first: bool,
     is_ignore_backups: bool,
+    is_sort_by_time: bool,
+    is_sort_by_size: bool,
+    is_show_size_blocks: bool,
 }
 
 struct RSEntry {
@@ -108,6 +147,11 @@ impl RSEntry {
     fn get_table_row(&self, options: &Options) -> Vec<String> {
         let mut string_builder: Vec<String> = vec![];
         if let Some(ref file_metadata) = &self.metadata {
+            // size blocks
+            if options.is_show_size_blocks {
+                string_builder.push((file_metadata.st_blksize() / 1024).to_string())
+            }
+
             if options.is_long_output || options.is_numeric_uid_gid {
                 // permission string
                 let permission_string = self.get_permission_string();
@@ -207,7 +251,7 @@ impl fmt::Display for RSEntry {
     }
 }
 
-fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> Vec<RSEntry> {
+fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> RSEntries {
     let mut rs_entries: Vec<RSEntry> = vec![];
     for dir_entry in dir_entries {
         let local_path = base_path.join(&dir_entry);
@@ -228,7 +272,7 @@ fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> Vec<RSEntry> {
             }
         }
     }
-    rs_entries
+    RSEntries::from(rs_entries)
 }
 
 fn get_dir_entries(dir: ReadDir, options: &Options) -> Vec<String> {
@@ -237,14 +281,16 @@ fn get_dir_entries(dir: ReadDir, options: &Options) -> Vec<String> {
         .filter_map(|d| d.ok())
         .map(|d| d.file_name())
         .filter_map(|o| o.into_string().ok())
-        .filter(|s| (options.is_show_all || options.is_show_almost_all) || !s.starts_with(CURRENT_DIR))
+        .filter(|s| {
+            (options.is_show_all || options.is_show_almost_all) || !s.starts_with(CURRENT_DIR)
+        })
         .filter(|s| !options.is_ignore_backups || (options.is_ignore_backups && !s.ends_with("~")))
         .collect();
 }
 
-fn get_tabular_entries(rs_entries: Vec<RSEntry>, options: &Options) -> Vec<Vec<String>> {
+fn get_tabular_entries(rs_entries: RSEntries, options: &Options) -> Vec<Vec<String>> {
     let mut output: Vec<Vec<String>> = vec![];
-    for entry in rs_entries {
+    for entry in rs_entries.entries {
         let row = entry.get_table_row(options);
         output.push(row);
     }
@@ -260,16 +306,17 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
     }
 
     let mut rs_entries = get_entries(dir_entries, base_path);
+
+    let mut sort_type: RSSort = RSSort::Default;
     if options.is_group_directories_first {
-        rs_entries.sort_by(|a, b| {
-            if let (Some(meta_a), Some(meta_b)) = (&a.metadata, &b.metadata) {
-                return meta_b.is_dir().cmp(&meta_a.is_dir());
-            }
-            a.cmp(b)
-        })
-    } else {
-        rs_entries.sort();
+        sort_type = RSSort::Directory;
+    } else if options.is_sort_by_size {
+        sort_type = RSSort::Size;
+    } else if options.is_sort_by_time {
+        sort_type = RSSort::Time;
     }
+
+    rs_entries.sort_by(sort_type);
 
     let tabular_entries = get_tabular_entries(rs_entries, &options);
 
@@ -303,7 +350,10 @@ fn run() -> Result<(), String> {
         .arg(
             Arg::with_name(GROUP_DIRECTORIES_FIRST_ARG_NAME).long(GROUP_DIRECTORIES_FIRST_ARG_NAME),
         )
-        .arg(Arg::with_name(IGNORE_BACKUPS_ARG_NAME).short("B"));
+        .arg(Arg::with_name(IGNORE_BACKUPS_ARG_NAME).short("B"))
+        .arg(Arg::with_name(TIME_SORT_ARG_NAME).short("t"))
+        .arg(Arg::with_name(SIZE_ARG_NAME).short("s"))
+        .arg(Arg::with_name(SIZE_SORT_ARG_NAME).short("S"));
 
     let matches = app.get_matches();
 
@@ -321,6 +371,9 @@ fn run() -> Result<(), String> {
         is_human_readable: matches.is_present(HUMAN_READABLE_ARG_NAME),
         is_group_directories_first: matches.is_present(GROUP_DIRECTORIES_FIRST_ARG_NAME),
         is_ignore_backups: matches.is_present(IGNORE_BACKUPS_ARG_NAME),
+        is_sort_by_time: matches.is_present(TIME_SORT_ARG_NAME),
+        is_sort_by_size: matches.is_present(SIZE_SORT_ARG_NAME),
+        is_show_size_blocks: matches.is_present(SIZE_ARG_NAME),
     };
 
     if let Ok(metadata) = fs::metadata(base_path) {
