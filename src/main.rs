@@ -1,15 +1,14 @@
 mod format;
 mod time;
+mod user;
 
 use std::{
     cmp::Ordering,
-    collections::HashMap,
     fmt,
     fs::{self, Metadata, ReadDir},
-    os::unix::prelude::PermissionsExt,
+    os::{linux::fs::MetadataExt, unix::prelude::PermissionsExt},
     path::{Path, PathBuf},
     process::exit,
-    string,
     time::SystemTime,
 };
 
@@ -92,9 +91,28 @@ impl RSEntry {
         let mut string_builder: Vec<String> = vec![];
         if let Some(ref file_metadata) = &self.metadata {
             if is_long_output {
+                // permission string
                 let permission_string = self.get_permission_string();
                 string_builder.push(permission_string);
 
+                // number of hardlinks
+                string_builder.push(file_metadata.st_nlink().to_string());
+
+                // owner
+                if let Ok(user_name) = user::get_by_uid(file_metadata.st_uid()) {
+                    string_builder.push(user_name)
+                } else {
+                    string_builder.push("?".to_string());
+                }
+
+                // group
+                if let Ok(group_name) = user::group_by_gid(file_metadata.st_gid()) {
+                    string_builder.push(group_name);
+                } else {
+                    string_builder.push("?".to_string());
+                }
+
+                // last modified time
                 if let Ok(accessed) = file_metadata.modified() {
                     let duration = accessed.duration_since(SystemTime::UNIX_EPOCH).unwrap();
                     let days = duration.as_secs() / SECS_PER_DAY;
@@ -105,6 +123,7 @@ impl RSEntry {
                     string_builder.push(String::from(" "));
                 }
 
+                // file size
                 let file_size = &self.get_file_size();
                 string_builder.push(file_size.to_string())
             }
