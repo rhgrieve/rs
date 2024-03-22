@@ -21,4 +21,5 @@ OPTIONS:
   -s, --size
   -S, --sort-size
   -i, --inode
+  -k, --kibibytes
 ```

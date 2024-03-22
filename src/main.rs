@@ -45,6 +45,7 @@ const REVERSE_ARG_NAME: &str = "reverse";
 const SIZE_ARG_NAME: &str = "size";
 const ACCESS_TIME_ARG_NAME: &str = "access-time";
 const INODE_ARG_NAME: &str = "inode";
+const KIBIBYTES_ARG_NAME: &str = "kibibytes";
 
 // Separators
 const ENTRY_SPACE: &str = "  ";
@@ -127,7 +128,8 @@ struct Options {
     is_sort_reverse: bool,
     is_show_size_blocks: bool,
     is_access_time: bool,
-    is_show_inode: bool
+    is_show_inode: bool,
+    is_kibibytes: bool
 }
 
 struct RSEntry {
@@ -188,7 +190,11 @@ impl RSEntry {
         if let Some(ref file_metadata) = &self.metadata {
             // size blocks
             if options.is_show_size_blocks {
-                string_builder.push((file_metadata.st_blocks()).to_string())
+                let mut blocks = file_metadata.st_blocks();
+                if options.is_kibibytes {
+                    blocks /= 2;
+                }
+                string_builder.push((blocks).to_string())
             }
 
             // index node
@@ -417,7 +423,8 @@ fn run() -> Result<(), String> {
         .arg(Arg::with_name(EXT_SORT_ARG_NAME).short("X"))
         .arg(Arg::with_name(REVERSE_ARG_NAME).short("r"))
         .arg(Arg::with_name(ACCESS_TIME_ARG_NAME).short("u"))
-        .arg(Arg::with_name(INODE_ARG_NAME).short("i").long(INODE_ARG_NAME));
+        .arg(Arg::with_name(INODE_ARG_NAME).short("i").long(INODE_ARG_NAME))
+        .arg(Arg::with_name(KIBIBYTES_ARG_NAME).short("k").long(KIBIBYTES_ARG_NAME));
 
     let matches = app.get_matches();
 
@@ -436,7 +443,8 @@ fn run() -> Result<(), String> {
         is_sort_reverse: matches.is_present(REVERSE_ARG_NAME),
         is_show_size_blocks: matches.is_present(SIZE_ARG_NAME),
         is_access_time: matches.is_present(ACCESS_TIME_ARG_NAME),
-        is_show_inode: matches.is_present(INODE_ARG_NAME)
+        is_show_inode: matches.is_present(INODE_ARG_NAME),
+        is_kibibytes: matches.is_present(KIBIBYTES_ARG_NAME)
     };
 
     let base_path = match matches.value_of(PATH_ARG_NAME) {
