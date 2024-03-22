@@ -3,13 +3,7 @@ mod time;
 mod user;
 
 use std::{
-    cmp::Ordering,
-    fmt,
-    fs::{self, Metadata, ReadDir},
-    os::unix::prelude::PermissionsExt,
-    path::{Path, PathBuf},
-    process::exit,
-    time::SystemTime,
+    borrow::Borrow, cmp::Ordering, fmt, fs::{self, Metadata, ReadDir}, os::unix::prelude::PermissionsExt, path::{Path, PathBuf}, process::exit, time::SystemTime
 };
 
 #[cfg(target_os = "linux")]
@@ -46,6 +40,7 @@ const SIZE_ARG_NAME: &str = "size";
 const ACCESS_TIME_ARG_NAME: &str = "access-time";
 const INODE_ARG_NAME: &str = "inode";
 const KIBIBYTES_ARG_NAME: &str = "kibibytes";
+const COMMA_SEPARATED_ARG_NAME: &str = "comma-separated";
 
 // Separators
 const ENTRY_SPACE: &str = "  ";
@@ -129,7 +124,8 @@ struct Options {
     is_show_size_blocks: bool,
     is_access_time: bool,
     is_show_inode: bool,
-    is_kibibytes: bool
+    is_kibibytes: bool,
+    is_comma_separated: bool
 }
 
 struct RSEntry {
@@ -309,6 +305,12 @@ impl fmt::Display for RSEntry {
     }
 }
 
+impl Borrow<str> for RSEntry {
+    fn borrow(&self) -> &str {
+        &self.name
+    }
+}
+
 fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> RSEntries {
     let mut block_size = 0;
     let mut rs_entries: Vec<RSEntry> = vec![];
@@ -394,6 +396,9 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
             println!("total {}", rs_entries.block_size);
         }
         println!("{}", table);
+    } else if options.is_comma_separated {
+        // TODO: figure out how to handle coloured folders
+        println!("{}", rs_entries.entries.join(", "))
     } else {
         println!("{}", rs_entries.to_tabular(&options).concat().join(ENTRY_SPACE));
     }
@@ -424,7 +429,8 @@ fn run() -> Result<(), String> {
         .arg(Arg::with_name(REVERSE_ARG_NAME).short("r"))
         .arg(Arg::with_name(ACCESS_TIME_ARG_NAME).short("u"))
         .arg(Arg::with_name(INODE_ARG_NAME).short("i").long(INODE_ARG_NAME))
-        .arg(Arg::with_name(KIBIBYTES_ARG_NAME).short("k").long(KIBIBYTES_ARG_NAME));
+        .arg(Arg::with_name(KIBIBYTES_ARG_NAME).short("k").long(KIBIBYTES_ARG_NAME))
+        .arg(Arg::with_name(COMMA_SEPARATED_ARG_NAME).short("m"));
 
     let matches = app.get_matches();
 
@@ -444,7 +450,8 @@ fn run() -> Result<(), String> {
         is_show_size_blocks: matches.is_present(SIZE_ARG_NAME),
         is_access_time: matches.is_present(ACCESS_TIME_ARG_NAME),
         is_show_inode: matches.is_present(INODE_ARG_NAME),
-        is_kibibytes: matches.is_present(KIBIBYTES_ARG_NAME)
+        is_kibibytes: matches.is_present(KIBIBYTES_ARG_NAME),
+        is_comma_separated: matches.is_present(COMMA_SEPARATED_ARG_NAME)
     };
 
     let base_path = match matches.value_of(PATH_ARG_NAME) {

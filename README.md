@@ -22,4 +22,5 @@ OPTIONS:
   -S, --sort-size
   -i, --inode
   -k, --kibibytes
+  -m, --comma-separated
 ```
