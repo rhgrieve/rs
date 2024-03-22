@@ -18,6 +18,9 @@ use std::os::linux::fs::MetadataExt;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::MetadataExt;
 
+#[cfg(target_os = "unix")]
+use std::os::unix::fs::MetadataExt;
+
 use rawrgs::{App, Arg};
 
 use crate::format::{table, TableAlignment};
@@ -41,6 +44,7 @@ const EXT_SORT_ARG_NAME: &str = "sort-extension";
 const REVERSE_ARG_NAME: &str = "reverse";
 const SIZE_ARG_NAME: &str = "size";
 const ACCESS_TIME_ARG_NAME: &str = "access-time";
+const INODE_ARG_NAME: &str = "inode";
 
 // Separators
 const ENTRY_SPACE: &str = "  ";
@@ -123,6 +127,7 @@ struct Options {
     is_sort_reverse: bool,
     is_show_size_blocks: bool,
     is_access_time: bool,
+    is_show_inode: bool
 }
 
 struct RSEntry {
@@ -184,6 +189,14 @@ impl RSEntry {
             // size blocks
             if options.is_show_size_blocks {
                 string_builder.push((file_metadata.st_blksize() / MB_BYTES).to_string())
+            }
+
+            // index node
+            if options.is_show_inode {
+                // TODO: handle other platforms
+                if cfg!(target_os = "macos") {
+                    string_builder.push(file_metadata.st_ino().to_string())
+                }
             }
 
             if options.is_long_output || options.is_numeric_uid_gid {
@@ -403,7 +416,8 @@ fn run() -> Result<(), String> {
         .arg(Arg::with_name(SIZE_SORT_ARG_NAME).short("S"))
         .arg(Arg::with_name(EXT_SORT_ARG_NAME).short("X"))
         .arg(Arg::with_name(REVERSE_ARG_NAME).short("r"))
-        .arg(Arg::with_name(ACCESS_TIME_ARG_NAME).short("u"));
+        .arg(Arg::with_name(ACCESS_TIME_ARG_NAME).short("u"))
+        .arg(Arg::with_name(INODE_ARG_NAME).short("i").long(INODE_ARG_NAME));
 
     let matches = app.get_matches();
 
@@ -422,6 +436,7 @@ fn run() -> Result<(), String> {
         is_sort_reverse: matches.is_present(REVERSE_ARG_NAME),
         is_show_size_blocks: matches.is_present(SIZE_ARG_NAME),
         is_access_time: matches.is_present(ACCESS_TIME_ARG_NAME),
+        is_show_inode: matches.is_present(INODE_ARG_NAME)
     };
 
     let base_path = match matches.value_of(PATH_ARG_NAME) {

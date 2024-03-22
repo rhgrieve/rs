@@ -20,4 +20,5 @@ OPTIONS:
   -t, --sort-time
   -s, --size
   -S, --sort-size
+  -i, --inode
 ```
