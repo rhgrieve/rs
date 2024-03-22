@@ -3,7 +3,14 @@ mod time;
 mod user;
 
 use std::{
-    borrow::Borrow, cmp::Ordering, fmt, fs::{self, Metadata, ReadDir}, os::unix::prelude::PermissionsExt, path::{Path, PathBuf}, process::exit, time::SystemTime
+    borrow::Borrow,
+    cmp::Ordering,
+    fmt,
+    fs::{self, Metadata, ReadDir},
+    os::unix::prelude::PermissionsExt,
+    path::{Path, PathBuf},
+    process::exit,
+    time::SystemTime,
 };
 
 #[cfg(target_os = "linux")]
@@ -125,7 +132,7 @@ struct Options {
     is_access_time: bool,
     is_show_inode: bool,
     is_kibibytes: bool,
-    is_comma_separated: bool
+    is_comma_separated: bool,
 }
 
 struct RSEntry {
@@ -325,7 +332,7 @@ fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> RSEntries {
                     path: local_path,
                     metadata: Some(meta),
                 })
-            },
+            }
             Err(err) => {
                 eprintln!("{}", err);
                 rs_entries.push(RSEntry {
@@ -336,7 +343,10 @@ fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> RSEntries {
             }
         }
     }
-    RSEntries { entries: rs_entries, block_size }
+    RSEntries {
+        entries: rs_entries,
+        block_size,
+    }
 }
 
 fn get_dir_entries(dir: ReadDir, options: &Options) -> Vec<String> {
@@ -372,11 +382,28 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
     let mut rs_entries = get_entries(dir_entries, base_path);
 
     let sort_type = match options {
-        Options { is_group_directories_first: true, .. } => RSSort::Directory,
-        Options { is_sort_by_size: true, .. } => RSSort::Size,
-        Options { is_access_time: true, is_long_output: true, is_sort_by_time: true, .. } => RSSort::AccessTime,
-        Options { is_sort_by_time: true, .. } => RSSort::Time,
-        Options { is_sort_by_extension: true, .. } => RSSort::Extension,
+        Options {
+            is_group_directories_first: true,
+            ..
+        } => RSSort::Directory,
+        Options {
+            is_sort_by_size: true,
+            ..
+        } => RSSort::Size,
+        Options {
+            is_access_time: true,
+            is_long_output: true,
+            is_sort_by_time: true,
+            ..
+        } => RSSort::AccessTime,
+        Options {
+            is_sort_by_time: true,
+            ..
+        } => RSSort::Time,
+        Options {
+            is_sort_by_extension: true,
+            ..
+        } => RSSort::Extension,
         _ => RSSort::Default,
     };
 
@@ -400,7 +427,10 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
         // TODO: figure out how to handle coloured folders
         println!("{}", rs_entries.entries.join(", "))
     } else {
-        println!("{}", rs_entries.to_tabular(&options).concat().join(ENTRY_SPACE));
+        println!(
+            "{}",
+            rs_entries.to_tabular(&options).concat().join(ENTRY_SPACE)
+        );
     }
 
     Ok(())
@@ -428,8 +458,16 @@ fn run() -> Result<(), String> {
         .arg(Arg::with_name(EXT_SORT_ARG_NAME).short("X"))
         .arg(Arg::with_name(REVERSE_ARG_NAME).short("r"))
         .arg(Arg::with_name(ACCESS_TIME_ARG_NAME).short("u"))
-        .arg(Arg::with_name(INODE_ARG_NAME).short("i").long(INODE_ARG_NAME))
-        .arg(Arg::with_name(KIBIBYTES_ARG_NAME).short("k").long(KIBIBYTES_ARG_NAME))
+        .arg(
+            Arg::with_name(INODE_ARG_NAME)
+                .short("i")
+                .long(INODE_ARG_NAME),
+        )
+        .arg(
+            Arg::with_name(KIBIBYTES_ARG_NAME)
+                .short("k")
+                .long(KIBIBYTES_ARG_NAME),
+        )
         .arg(Arg::with_name(COMMA_SEPARATED_ARG_NAME).short("m"));
 
     let matches = app.get_matches();
@@ -451,7 +489,7 @@ fn run() -> Result<(), String> {
         is_access_time: matches.is_present(ACCESS_TIME_ARG_NAME),
         is_show_inode: matches.is_present(INODE_ARG_NAME),
         is_kibibytes: matches.is_present(KIBIBYTES_ARG_NAME),
-        is_comma_separated: matches.is_present(COMMA_SEPARATED_ARG_NAME)
+        is_comma_separated: matches.is_present(COMMA_SEPARATED_ARG_NAME),
     };
 
     let base_path = match matches.value_of(PATH_ARG_NAME) {
