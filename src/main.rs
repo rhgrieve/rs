@@ -371,7 +371,9 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
             TableAlignment::RightLastLeft,
         )
         .unwrap();
-        println!("total {}", rs_entries.block_size);
+        if !options.is_one_line {
+            println!("total {}", rs_entries.block_size);
+        }
         println!("{}", table);
     } else {
         println!("{}", rs_entries.to_tabular(&options).concat().join(ENTRY_SPACE));
