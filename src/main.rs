@@ -6,11 +6,17 @@ use std::{
     cmp::Ordering,
     fmt,
     fs::{self, Metadata, ReadDir},
-    os::{linux::fs::MetadataExt, unix::prelude::PermissionsExt},
+    os::unix::prelude::PermissionsExt,
     path::{Path, PathBuf},
     process::exit,
     time::SystemTime,
 };
+
+#[cfg(target_os = "linux")]
+use std::os::linux::fs::MetadataExt;
+
+#[cfg(target_os = "macos")]
+use std::os::macos::fs::MetadataExt;
 
 use rawrgs::{App, Arg};
 
