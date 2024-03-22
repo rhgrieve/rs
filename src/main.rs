@@ -188,7 +188,7 @@ impl RSEntry {
         if let Some(ref file_metadata) = &self.metadata {
             // size blocks
             if options.is_show_size_blocks {
-                string_builder.push((file_metadata.st_blksize() / MB_BYTES).to_string())
+                string_builder.push((file_metadata.st_blocks()).to_string())
             }
 
             // index node
