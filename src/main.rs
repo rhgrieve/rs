@@ -51,7 +51,6 @@ const COMMA_SEPARATED_ARG_NAME: &str = "comma-separated";
 
 // Separators
 const ENTRY_SPACE: &str = "  ";
-const TABLE_COL_SIZE: usize = 1;
 
 // Directory indicators
 const CURRENT_DIR: &str = ".";
@@ -147,19 +146,19 @@ impl RSEntry {
         if let Some(file_metadata) = &self.metadata {
             let mut permission_string_prefix = String::new();
             if file_metadata.is_dir() {
-                permission_string_prefix.push_str("d");
+                permission_string_prefix.push('d');
             } else if file_metadata.is_file() {
-                permission_string_prefix.push_str("-");
+                permission_string_prefix.push('-');
             } else if file_metadata.is_symlink() {
-                permission_string_prefix.push_str("l");
+                permission_string_prefix.push('l');
             } else {
-                permission_string_prefix.push_str("?");
+                permission_string_prefix.push('?');
             }
 
             let mode = file_metadata.permissions().mode();
             let mode_string = format!("{:o}", mode);
             let permission_bits = mode_string[mode_string.len() - 3..].to_string();
-            permission_string = String::from(permission_string_prefix);
+            permission_string = permission_string_prefix;
             for bit in permission_bits.chars() {
                 match bit {
                     '4' => permission_string.push_str("r--"),
@@ -170,7 +169,7 @@ impl RSEntry {
                 }
             }
         }
-        return permission_string;
+        permission_string
     }
 
     fn get_file_size(&self) -> u64 {
@@ -185,7 +184,7 @@ impl RSEntry {
         if let Some(file_metadata) = &self.metadata {
             human_readable_string = format::bytes_to_human_readable(file_metadata.len())
         }
-        return human_readable_string;
+        human_readable_string
     }
 
     fn get_table_row(&self, options: &Options) -> Vec<String> {
@@ -350,7 +349,7 @@ fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> RSEntries {
 }
 
 fn get_dir_entries(dir: ReadDir, options: &Options) -> Vec<String> {
-    return dir
+    dir
         .into_iter()
         .filter_map(|d| d.ok())
         .map(|d| d.file_name())
@@ -358,18 +357,18 @@ fn get_dir_entries(dir: ReadDir, options: &Options) -> Vec<String> {
         .filter(|s| {
             (options.is_show_all || options.is_show_almost_all) || !s.starts_with(CURRENT_DIR)
         })
-        .filter(|s| !options.is_ignore_backups || (options.is_ignore_backups && !s.ends_with("~")))
-        .collect();
+        .filter(|s| !(options.is_ignore_backups && s.ends_with('~')))
+        .collect()
 }
 
-fn get_tabular_entries(rs_entries: RSEntries, options: &Options) -> Vec<Vec<String>> {
-    let mut output: Vec<Vec<String>> = vec![];
-    for entry in rs_entries.entries {
-        let row = entry.get_table_row(options);
-        output.push(row);
-    }
-    output
-}
+// fn get_tabular_entries(rs_entries: RSEntries, options: &Options) -> Vec<Vec<String>> {
+//     let mut output: Vec<Vec<String>> = vec![];
+//     for entry in rs_entries.entries {
+//         let row = entry.get_table_row(options);
+//         output.push(row);
+//     }
+//     output
+// }
 
 fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(), String> {
     let mut dir_entries = get_dir_entries(dir, &options);
@@ -415,7 +414,6 @@ fn process_entries(dir: ReadDir, base_path: &Path, options: Options) -> Result<(
     if options.is_one_line || options.is_long_output || options.is_numeric_uid_gid {
         let table = table(
             rs_entries.to_tabular(&options),
-            TABLE_COL_SIZE,
             TableAlignment::RightLastLeft,
         )
         .unwrap();
@@ -504,12 +502,12 @@ fn run() -> Result<(), String> {
         }
     }
 
-    return match fs::read_dir(base_path) {
+    match fs::read_dir(base_path) {
         Ok(read_dir) => process_entries(read_dir, base_path, options),
         Err(err) => {
             Err(format!("rs: cannot access '{}': {}", base_path.display(), err).to_string())
         }
-    };
+    }
 }
 
 fn main() {
