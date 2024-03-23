@@ -61,7 +61,7 @@ const PARENT_DIR: &str = "..";
 const SECS_PER_DAY: u64 = 86400;
 
 // Size
-const MB_BYTES: u64 = 1024;
+// const MB_BYTES: u64 = 1024;
 
 enum RSSort {
     Time,
@@ -326,7 +326,7 @@ fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> RSEntries {
         let metadata = fs::metadata(&local_path);
         match metadata {
             Ok(meta) => {
-                block_size += meta.st_blksize() / MB_BYTES;
+                block_size += meta.st_blocks();
                 rs_entries.push(RSEntry {
                     name: dir_entry,
                     path: local_path,
