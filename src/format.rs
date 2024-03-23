@@ -49,20 +49,20 @@ pub enum TableAlignment {
     RightLastLeft
 }
 
-fn pad_right(input: String, length: &usize) -> String {
-    let mut padded_string = input;
+// fn pad_right(input: String, length: &usize) -> String {
+//     let mut padded_string = input;
 
-    if unescaped_length(&padded_string) == *length {
-        return padded_string
-    }
+//     if unescaped_length(&padded_string) == *length {
+//         return padded_string
+//     }
 
-    let spaces_to_add = length - unescaped_length(&padded_string);
-    for _ in 0..spaces_to_add {
-        padded_string.push(' ');
-    }
+//     let spaces_to_add = length - unescaped_length(&padded_string);
+//     for _ in 0..spaces_to_add {
+//         padded_string.push(' ');
+//     }
 
-    padded_string
-}
+//     padded_string
+// }
 
 fn pad_left(input: String, length: &usize) -> String {
     let mut padded_string = String::new();
@@ -122,10 +122,10 @@ pub fn table(input_data: Vec<Vec<String>>, align: TableAlignment) -> Result<Stri
                             // TableAlignment::Left => pad_right(col.to_string(), max_length),
                             // TableAlignment::Right => pad_left(col.to_string(), max_length),
                             TableAlignment::RightLastLeft => {
-                                if index == num_cols - 1 {
-                                    pad_right(col.clone(), max_length)
-                                } else {
+                                if index != num_cols - 1 {
                                     pad_left(col.clone(), max_length)
+                                } else {
+                                    col.clone()
                                 }
                             }
                         };
