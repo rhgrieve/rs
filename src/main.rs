@@ -7,6 +7,7 @@ use std::{
     cmp::Ordering,
     fmt,
     fs::{self, Metadata, ReadDir},
+    io::IsTerminal,
     os::unix::prelude::PermissionsExt,
     path::{Path, PathBuf},
     process::exit,
@@ -265,7 +266,7 @@ impl RSEntry {
                 }
             }
 
-            if file_metadata.is_dir() {
+            if file_metadata.is_dir() && std::io::stdout().is_terminal() {
                 string_builder.push(format::blue_bold(&self.name))
             } else {
                 string_builder.push(self.name.to_string());
@@ -298,7 +299,7 @@ impl PartialEq for RSEntry {
 impl fmt::Display for RSEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(meta) = &self.metadata {
-            if meta.is_dir() {
+            if meta.is_dir() && std::io::stdout().is_terminal() {
                 write!(f, "{}", format::blue_bold(&self.name))?;
             } else {
                 write!(f, "{}", self.name)?;
@@ -349,8 +350,7 @@ fn get_entries(dir_entries: Vec<String>, base_path: &Path) -> RSEntries {
 }
 
 fn get_dir_entries(dir: ReadDir, options: &Options) -> Vec<String> {
-    dir
-        .into_iter()
+    dir.into_iter()
         .filter_map(|d| d.ok())
         .map(|d| d.file_name())
         .filter_map(|o| o.into_string().ok())
